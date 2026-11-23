@@ -220,32 +220,54 @@ The demonstration configuration uses a pitch referencing ITONICS as an example o
 | Block free email domains | `false` |
 | Segment cutoffs | Enterprise ≥1,000; Mid-Market ≥100; SMB otherwise |
 
-## 11. Project Status and Limitations
 
-This repository documents the **configured workflow design and logic** in the supplied n8n export. An exported configuration alone does not establish successful end-to-end production execution or performance results.
+## Run This Workflow in n8n
 
-- **Evidence coverage:** Search results and website content may be incomplete, ambiguous, or out of date. Company size may be unknown or approximate.
-- **AI extraction:** Schema-constrained output reduces formatting variation but does not guarantee factual correctness. The workflow's qualitative confidence should not be interpreted as calibrated certainty.
-- **Scoring model:** Weights and thresholds are hand-configured. No conversion-rate validation, precision/recall analysis, or business outcome benchmark is provided.
-- **Routing:** Queue assignments are configurable placeholders; no real representative roster is established by the export.
-- **CRM behavior:** HubSpot connection, property access, and existing-contact behavior must be verified in the target portal. A node named `Upsert HubSpot Contact` should not be taken as proof of deduplicated upsert semantics without a live test.
-- **Observability:** The log captures status, error text, and processing seconds, but no measured benchmark results are supplied.
-- **Outbound delivery:** The pipeline generates suggested outreach but does not send the email or LinkedIn note automatically.
-- **Privacy:** Production use requires an appropriate basis and retention/access controls for personal data and third-party enrichment.
+**[View Interactive n8n Workflow](https://share-n8n.com/shared/KB6C4GqKKnUv)** | **[Download Workflow JSON](./workflow.json)**
 
-## 12. Repository Structure
+### Setup Instructions
 
-```text
-.
-├── README.md
-└── assets/
-    ├── 01-system-architecture.png (+ .svg)
-    ├── 02-workflow-logic.png (+ .svg)
-    ├── 03-lead-scoring.png (+ .svg)
-    └── 04-sales-routing.png (+ .svg)
-```
+1. **Import the workflow:** Open n8n → Create Workflow → Three-dot menu → Import from File → Select `workflow.json`.
 
-The original four landscape diagram images are included as PNG files and embedded above. Editable SVG recreations are also included in `assets/`; their layout may differ from the PNG originals.
+2. **Connect credentials:** Configure Brave Search, Firecrawl, OpenAI, HubSpot, and Slack.
+
+3. **Create the Data Table:** Create `inbound_leads_log` with the required columns and select it in the three Data Table nodes.
+
+4. **Configure your ICP:** Open the `Lead Config` node and update:
+   - Company pitch
+   - Target industries and technologies
+   - Ideal company size
+   - Hot and warm scoring thresholds
+   - Sales representative assignments
+
+5. **Configure integrations:** Select your Slack notification channels and verify HubSpot contact mappings.
+
+6. **Test the workflow:** Click **Listen for Test Event** on the webhook node and send a sample POST request:
+
+   ```bash
+   curl -X POST "https://YOUR-N8N-DOMAIN/webhook-test/inbound-lead" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "first_name": "Alex",
+       "last_name": "Morgan",
+       "email": "alex@example.com",
+       "company": "Example Inc",
+       "website": "example.com",
+       "job_title": "Head of Sales",
+       "message": "Interested in a product demo"
+     }'
+   ```
+
+7. **Verify outputs:** Check the lead score, HubSpot contact, Slack notification, and execution logs.
+
+8. **Go live:** Publish the workflow and use the production webhook:
+
+   ```text
+   https://YOUR-N8N-DOMAIN/webhook/inbound-lead
+   ```
+
+> **Note:** This workflow uses demonstration ICP settings and placeholder sales queues. Update these before production use. API credentials must be configured in your own n8n instance.
+
 
 ---
 
