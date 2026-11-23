@@ -1,0 +1,1527 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbound-lead",
+        "options": {
+          "responseData": "{\"status\":\"received\"}"
+        }
+      },
+      "id": "4cdb6fce-1153-40d4-ba7a-d54c88a8605a",
+      "name": "Receive Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "7a79ba16-71a1-4ffa-96fe-3a5e67fb5d1d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-pitch",
+              "name": "company_pitch",
+              "value": "It should be configured, but for demo lets take Itonics.com Innovation managemnt platform",
+              "type": "string"
+            },
+            {
+              "id": "cfg-ind",
+              "name": "target_industries",
+              "value": "software, saas, fintech, e-commerce, marketing, it services",
+              "type": "string"
+            },
+            {
+              "id": "cfg-tech",
+              "name": "target_tech",
+              "value": "hubspot, salesforce, segment, snowflake, aws, stripe, shopify, zapier, n8n",
+              "type": "string"
+            },
+            {
+              "id": "cfg-min",
+              "name": "icp_min_employees",
+              "value": 50,
+              "type": "number"
+            },
+            {
+              "id": "cfg-max",
+              "name": "icp_max_employees",
+              "value": 2000,
+              "type": "number"
+            },
+            {
+              "id": "cfg-hot",
+              "name": "hot_threshold",
+              "value": 70,
+              "type": "number"
+            },
+            {
+              "id": "cfg-warm",
+              "name": "warm_threshold",
+              "value": 45,
+              "type": "number"
+            },
+            {
+              "id": "cfg-dedupe",
+              "name": "dedupe_hours",
+              "value": 24,
+              "type": "number"
+            },
+            {
+              "id": "cfg-free",
+              "name": "free_email_domains",
+              "value": "gmail.com, yahoo.com, hotmail.com, outlook.com, icloud.com, aol.com, gmx.de, web.de, proton.me, protonmail.com",
+              "type": "string"
+            },
+            {
+              "id": "cfg-block",
+              "name": "block_free_email",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "cfg-reps",
+              "name": "reps",
+              "value": "={{ [ { \"segment\": \"enterprise\", \"name\": \"Enterprise AE\", \"slack_user_id\": \"\" }, { \"segment\": \"midmarket\", \"name\": \"Mid-Market AE\", \"slack_user_id\": \"\" }, { \"segment\": \"smb\", \"name\": \"SMB AE\", \"slack_user_id\": \"\" } ] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b4ab43de-de44-44a0-8b11-a2f3adce6fe6",
+      "name": "Lead Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        272,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Lead Config').first().json;\nconst raw = $('Receive Lead').first().json.body || {};\n\nconst clean = (v) => (v === undefined || v === null) ? '' : String(v).replace(/\\s+/g, ' ').trim();\nconst titleCase = (s) => s.toLowerCase().replace(/(^|[\\s'-])([a-z])/g, (m, p, c) => p + c.toUpperCase());\n\nconst email = clean(raw.email || raw.work_email || raw.Email).toLowerCase();\nconst emailValid = /^[^\\s@]+@[^\\s@]+\\.[a-z]{2,}$/i.test(email);\n\nlet first = clean(raw.first_name || raw.firstName);\nlet last = clean(raw.last_name || raw.lastName);\nconst full = clean(raw.name || raw.full_name || raw.fullName);\nif (!first && full) {\n  const parts = full.split(' ');\n  first = parts.shift();\n  last = parts.join(' ');\n}\nfirst = first ? titleCase(first) : '';\nlast = last ? titleCase(last) : '';\n\nconst freeDomains = String(cfg.free_email_domains || '').split(',').map(d => d.trim().toLowerCase()).filter(Boolean);\nconst emailDomain = email.includes('@') ? email.split('@')[1] : '';\nconst isFreeEmail = freeDomains.includes(emailDomain);\n\nlet website = clean(raw.website || raw.company_website || raw.url).toLowerCase();\nwebsite = website.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0];\nconst domain = website || (isFreeEmail ? '' : emailDomain);\n\nlet company = clean(raw.company || raw.company_name || raw.organization);\nif (!company && domain) {\n  const base = domain.split('.')[0];\n  company = base.charAt(0).toUpperCase() + base.slice(1);\n}\n\nlet linkedin = clean(raw.linkedin_url || raw.linkedin);\nif (linkedin && !/^https?:\\/\\//.test(linkedin)) linkedin = 'https://' + linkedin;\n\nconst errors = [];\nif (!emailValid) errors.push('invalid or missing email');\nif (cfg.block_free_email === true && isFreeEmail) errors.push('free email domain blocked by config');\n\nreturn [{\n  json: {\n    lead_id: 'lead_' + $execution.id,\n    received_at: new Date().toISOString(),\n    source: clean(raw.source || raw.utm_source) || 'webhook',\n    email,\n    first_name: first,\n    last_name: last,\n    full_name: [first, last].filter(Boolean).join(' '),\n    company,\n    domain,\n    is_free_email: isFreeEmail,\n    job_title: clean(raw.job_title || raw.title),\n    linkedin_url: linkedin,\n    phone: clean(raw.phone).replace(/[^\\d+]/g, ''),\n    country: clean(raw.country),\n    message: clean(raw.message || raw.comments).slice(0, 2000),\n    is_valid: errors.length === 0,\n    validation_errors: errors.join('; '),\n  },\n}];"
+      },
+      "id": "0efda823-1c6b-4f1e-bf3a-0b14a508da80",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "valid",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a8317cbb-ae8c-4a20-8fa8-e4f0204d8429",
+      "name": "Is Valid Lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7A8WNqq1VUwFTseO",
+          "cachedResultName": "inbound_leads_log"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "limit": 1,
+        "orderBy": true
+      },
+      "id": "d5b6f3c7-304c-45f9-9828-91fdc42aed1a",
+      "name": "Find Recent Submission",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        944,
+        176
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fresh",
+              "leftValue": "={{ !$json.received_at || DateTime.fromISO($json.received_at) < $now.minus({ hours: $(\"Lead Config\").first().json.dedupe_hours }) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3a67200a-e414-4980-bd22-a29da1117165",
+      "name": "Is New Lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1168,
+        176
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d3f40dcb-14ec-4f4f-b5aa-f05788b83e7b",
+      "name": "Lead Accepted",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rq-person",
+              "name": "person_query",
+              "value": "={{ $(\"Normalize Lead\").first().json.full_name ? \"\\\"\" + $(\"Normalize Lead\").first().json.full_name + \"\\\" \" + $(\"Normalize Lead\").first().json.company + \" linkedin\" : $(\"Normalize Lead\").first().json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "rq-company",
+              "name": "company_query",
+              "value": "={{ \"\\\"\" + ($(\"Normalize Lead\").first().json.company || $(\"Normalize Lead\").first().json.domain) + \"\\\" \" + $(\"Normalize Lead\").first().json.domain + \" funding OR hiring OR employees OR growth\" }}",
+              "type": "string"
+            },
+            {
+              "id": "rq-site",
+              "name": "website_url",
+              "value": "={{ $(\"Normalize Lead\").first().json.domain ? \"https://\" + $(\"Normalize Lead\").first().json.domain : \"https://www.google.com/search?q=\" + encodeURIComponent($(\"Normalize Lead\").first().json.company) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3db614bf-a9df-48ae-9e0a-7b6c76844ef7",
+      "name": "Prepare Research Inputs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        800,
+        320
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.person_query }}",
+        "count": 5,
+        "additionalParameters": {
+          "country": "ALL"
+        }
+      },
+      "id": "fc27c5e4-9599-4d74-8f6d-397a943ab697",
+      "name": "Search Person",
+      "type": "@brave/n8n-nodes-brave-search.braveSearch",
+      "typeVersion": 1.1,
+      "position": [
+        1072,
+        144
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "alwaysOutputData": true,
+      "credentials": {
+        "braveSearchApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.company_query }}",
+        "count": 8,
+        "additionalParameters": {
+          "country": "ALL",
+          "freshness": "py"
+        }
+      },
+      "id": "ec0ed55c-5431-42db-b2e5-3955c6ab65ed",
+      "name": "Search Company Signals",
+      "type": "@brave/n8n-nodes-brave-search.braveSearch",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        320
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "alwaysOutputData": true,
+      "credentials": {
+        "braveSearchApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "scrape",
+        "url": "={{ $json.website_url }}",
+        "scrapeOptions": {
+          "options": {
+            "formats": {
+              "format": [
+                {}
+              ]
+            },
+            "headers": {}
+          }
+        },
+        "requestOptions": {}
+      },
+      "id": "9fd8f60f-f854-4d82-b35a-5be840c18ff6",
+      "name": "Scrape Company Website",
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        480
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "alwaysOutputData": true,
+      "credentials": {
+        "firecrawlApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7A8WNqq1VUwFTseO",
+          "cachedResultName": "inbound_leads_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $(\"Normalize Lead\").first().json.lead_id }}",
+            "received_at": "={{ $(\"Normalize Lead\").first().json.received_at }}",
+            "source": "={{ $(\"Normalize Lead\").first().json.source }}",
+            "email": "={{ $(\"Normalize Lead\").first().json.email }}",
+            "full_name": "={{ $(\"Normalize Lead\").first().json.full_name }}",
+            "company": "={{ $(\"Normalize Lead\").first().json.company }}",
+            "domain": "={{ $(\"Normalize Lead\").first().json.domain }}",
+            "tier": "={{ $(\"Normalize Lead\").first().json.is_valid ? \"duplicate\" : \"rejected\" }}",
+            "crm_status": "skipped",
+            "error_message": "={{ $(\"Normalize Lead\").first().json.is_valid ? \"Same email submitted within the dedupe window\" : $(\"Normalize Lead\").first().json.validation_errors }}"
+          },
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "received_at",
+              "displayName": "received_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_title",
+              "displayName": "job_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seniority",
+              "displayName": "seniority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employee_count",
+              "displayName": "employee_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "growth_signal",
+              "displayName": "growth_signal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tech_adoption",
+              "displayName": "tech_adoption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "owner_queue",
+              "displayName": "owner_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score_breakdown",
+              "displayName": "score_breakdown",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "personalization_hook",
+              "displayName": "personalization_hook",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outreach_subject",
+              "displayName": "outreach_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outreach_message",
+              "displayName": "outreach_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "enrichment_confidence",
+              "displayName": "enrichment_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "crm_status",
+              "displayName": "crm_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "crm_contact_id",
+              "displayName": "crm_contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_seconds",
+              "displayName": "processing_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8e7dd724-8c73-4567-a4a8-10fe5332fec3",
+      "name": "Log Skipped Lead",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "numberInputs": 3,
+        "useDataOfInput": "3"
+      },
+      "id": "27acd8f3-bcd0-4868-984f-c2154a0a954d",
+      "name": "Wait for Research",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1248,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5.4-mini",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=LEAD (submitted by the person):\n{{ JSON.stringify($(\"Normalize Lead\").first().json) }}\n\nPERSON SEARCH RESULTS:\n{{ JSON.stringify($(\"Search Person\").all().map(i => i.json)).slice(0, 6000) }}\n\nCOMPANY SIGNAL SEARCH RESULTS (last 12 months):\n{{ JSON.stringify($(\"Search Company Signals\").all().map(i => i.json)).slice(0, 6000) }}\n\nCOMPANY WEBSITE CONTENT:\n{{ JSON.stringify($(\"Scrape Company Website\").all().map(i => i.json)).slice(0, 6000) }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "instructions": "You are a B2B lead research analyst. Build a firmographic and demographic profile of this lead using ONLY the provided lead data, search results and website content. Never invent facts: use \"unknown\", empty strings, empty arrays or null when evidence is missing. employee_count is your best numeric estimate only when a source states it or a clear range (use the lower bound). growth_signal: high = recent funding, rapid hiring, expansion or headcount growth; medium = some positive signal; low = stagnation or layoffs. tech_adoption reflects modern SaaS/cloud/data tooling seen on the site or in results. For the person: detect seniority from the title, whether they recently joined the company (roughly the last 6 months), tenure and total years of experience when stated. personalization_hooks are short, specific, verifiable facts a sales rep could reference (e.g. new role, work anniversary, funding round, product launch, hiring push). confidence reflects how sure you are that the results refer to this exact person and company.",
+          "reasoning": {
+            "reasoningOptions": {
+              "effort": "low",
+              "summary": "none"
+            }
+          },
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "lead_profile",
+              "schema": "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{\"company_name\":{\"type\":\"string\"},\"industry\":{\"type\":\"string\"},\"employee_count\":{\"type\":[\"number\",\"null\"]},\"hq_location\":{\"type\":\"string\"},\"funding_stage\":{\"type\":\"string\"},\"growth_signal\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\",\"unknown\"]},\"growth_evidence\":{\"type\":\"string\"},\"tech_stack\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"tech_adoption\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\",\"unknown\"]},\"job_title\":{\"type\":\"string\"},\"seniority\":{\"type\":\"string\",\"enum\":[\"c_level\",\"vp\",\"director\",\"manager\",\"individual_contributor\",\"unknown\"]},\"department\":{\"type\":\"string\"},\"years_experience\":{\"type\":[\"number\",\"null\"]},\"recently_joined_company\":{\"type\":\"boolean\"},\"tenure_at_company_years\":{\"type\":[\"number\",\"null\"]},\"career_highlights\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"personalization_hooks\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"confidence\":{\"type\":\"string\",\"enum\":[\"high\",\"medium\",\"low\"]},\"summary\":{\"type\":\"string\"}},\"required\":[\"company_name\",\"industry\",\"employee_count\",\"hq_location\",\"funding_stage\",\"growth_signal\",\"growth_evidence\",\"tech_stack\",\"tech_adoption\",\"job_title\",\"seniority\",\"department\",\"years_experience\",\"recently_joined_company\",\"tenure_at_company_years\",\"career_highlights\",\"personalization_hooks\",\"confidence\",\"summary\"]}",
+              "strict": true
+            }
+          }
+        }
+      },
+      "id": "a0903573-67ef-4a99-8116-a6d30dbba562",
+      "name": "Extract Lead Profile",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1472,
+        320
+      ],
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Scoring weights live here; thresholds, ICP and reps live in \"Lead Config\".\nconst cfg = $('Lead Config').first().json;\nconst lead = $('Normalize Lead').first().json;\n\nlet profile = {};\ntry {\n  const t = $input.first().json.output[0].content[0].text;\n  profile = typeof t === 'string' ? JSON.parse(t) : (t || {});\n} catch (e) {\n  profile = {};\n}\n\nconst list = (s) => String(s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);\nconst num = (v) => {\n  const x = Number(String(v === null || v === undefined ? '' : v).replace(/[^\\d.]/g, ''));\n  return isFinite(x) && x > 0 ? x : 0;\n};\n\nconst employees = num(profile.employee_count);\nconst breakdown = [];\nlet score = 0;\n\n// Company size fit (max 25)\nlet sizePts = 0;\nif (employees >= cfg.icp_min_employees && employees <= cfg.icp_max_employees) sizePts = 25;\nelse if (employees > cfg.icp_max_employees) sizePts = 15;\nelse if (employees > 0) sizePts = 8;\nscore += sizePts; breakdown.push('size ' + sizePts);\n\n// Growth (max 20)\nconst growthPts = ({ high: 20, medium: 10, low: 2 })[profile.growth_signal] || 0;\nscore += growthPts; breakdown.push('growth ' + growthPts);\n\n// Tech adoption (max 20)\nlet techPts = ({ high: 15, medium: 8, low: 2 })[profile.tech_adoption] || 0;\nconst stack = (profile.tech_stack || []).map(t => String(t).toLowerCase());\nconst targetTech = list(cfg.target_tech);\nif (stack.some(t => targetTech.some(tt => t.includes(tt)))) techPts += 5;\nscore += techPts; breakdown.push('tech ' + techPts);\n\n// Seniority (max 20)\nconst seniorityPts = ({ c_level: 20, vp: 18, director: 15, manager: 10, individual_contributor: 4 })[profile.seniority] || 0;\nscore += seniorityPts; breakdown.push('seniority ' + seniorityPts);\n\n// Industry fit (max 10)\nconst industry = String(profile.industry || '').toLowerCase();\nconst industryPts = industry && list(cfg.target_industries).some(i => industry.includes(i)) ? 10 : 0;\nscore += industryPts; breakdown.push('industry ' + industryPts);\n\n// Buying intent from their message (max 10)\nconst intentPts = /demo|pricing|price|quote|buy|purchase|trial|urgent|asap|call|meeting|implement/i.test(lead.message || '') ? 10 : 0;\nscore += intentPts; breakdown.push('intent ' + intentPts);\n\n// Penalties\nif (lead.is_free_email) { score -= 10; breakdown.push('free email -10'); }\n\nscore = Math.max(0, Math.min(100, Math.round(score)));\nconst tier = score >= cfg.hot_threshold ? 'hot' : (score >= cfg.warm_threshold ? 'warm' : 'nurture');\n\n// Rep assignment by company segment\nconst segment = employees >= 1000 ? 'enterprise' : (employees >= 100 ? 'midmarket' : 'smb');\nconst reps = Array.isArray(cfg.reps) ? cfg.reps : [];\nconst rep = reps.find(r => r.segment === segment) || reps[0] || { name: 'Unassigned', slack_user_id: '' };\nconst repMention = rep.slack_user_id ? '<@' + rep.slack_user_id + '>' : rep.name;\n\nconst lifecycle = tier === 'hot' ? 'salesqualifiedlead' : (tier === 'warm' ? 'marketingqualifiedlead' : 'lead');\n\nreturn [{\n  json: {\n    ...lead,\n    company: lead.company || profile.company_name || '',\n    job_title: lead.job_title || profile.job_title || '',\n    industry: profile.industry || '',\n    employee_count: employees || null,\n    hq_location: profile.hq_location || '',\n    funding_stage: profile.funding_stage || '',\n    growth_signal: profile.growth_signal || 'unknown',\n    growth_evidence: profile.growth_evidence || '',\n    tech_stack: stack.join(', '),\n    tech_adoption: profile.tech_adoption || 'unknown',\n    seniority: profile.seniority || 'unknown',\n    department: profile.department || '',\n    years_experience: profile.years_experience === undefined ? null : profile.years_experience,\n    recently_joined_company: profile.recently_joined_company === true,\n    tenure_at_company_years: profile.tenure_at_company_years === undefined ? null : profile.tenure_at_company_years,\n    career_highlights: (profile.career_highlights || []).join(' | '),\n    personalization_hooks: (profile.personalization_hooks || []).join(' | '),\n    enrichment_summary: profile.summary || '',\n    enrichment_confidence: profile.confidence || (Object.keys(profile).length ? 'low' : 'failed'),\n    score,\n    tier,\n    score_breakdown: breakdown.join(', '),\n    segment,\n    owner_queue: segment + ' / ' + rep.name,\n    rep_name: rep.name,\n    rep_mention: repMention,\n    hubspot_lifecycle: lifecycle,\n  },\n}];"
+      },
+      "id": "7878f7e7-12dc-4075-a34e-234df5bfec66",
+      "name": "Score & Assign Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5.4-mini",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=WHAT WE SELL: {{ $(\"Lead Config\").first().json.company_pitch }}\n\nSCORED LEAD PROFILE:\n{{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "instructions": "You write the first reply a sales rep sends to an inbound lead minutes after they submitted a form. Write in a warm, concise, human tone (max 110 words, no buzzwords, no emojis). Open with ONE specific, verifiable personalization from the profile, in this priority: recently joined the company -> congratulate on the new role; long tenure or 10+ years of experience -> acknowledge their depth of experience; recent funding, hiring push, expansion or product launch -> reference it; otherwise reference what they wrote in their message. Never invent facts; if enrichment_confidence is low or failed, keep the personalization to their message and company only. Connect their likely priority to what we sell in one sentence, then end with a soft call to action for a 15-minute call. Also return a LinkedIn connection note under 280 characters, a short email subject line, and hook_used describing the personalization you chose.",
+          "reasoning": {
+            "reasoningOptions": {
+              "effort": "low",
+              "summary": "none"
+            }
+          },
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "lead_outreach",
+              "schema": "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{\"subject\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"linkedin_note\":{\"type\":\"string\"},\"hook_used\":{\"type\":\"string\"}},\"required\":[\"subject\",\"message\",\"linkedin_note\",\"hook_used\"]}",
+              "strict": true
+            }
+          }
+        }
+      },
+      "id": "342e5b03-0fc3-49d6-932f-91eb39620ade",
+      "name": "Write Personalized Outreach",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        2128,
+        160
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Score & Assign Lead').first().json;\nlet o = {};\ntry {\n  const t = $input.first().json.output[0].content[0].text;\n  o = typeof t === 'string' ? JSON.parse(t) : (t || {});\n} catch (e) {\n  o = {};\n}\nconst name = lead.first_name || 'there';\nconst fallback = 'Hi ' + name + ', thanks for reaching out' + (lead.company ? ' from ' + lead.company : '') + '. I would love to learn more about what you are working on and see if we can help. Do you have 15 minutes this week for a quick call?';\nreturn [{\n  json: {\n    ...lead,\n    outreach_subject: o.subject || ('Quick follow-up' + (lead.company ? ' for ' + lead.company : '')),\n    outreach_message: o.message || fallback,\n    linkedin_note: o.linkedin_note || '',\n    personalization_hook: o.hook_used || '',\n    outreach_generated: Boolean(o.message),\n  },\n}];"
+      },
+      "id": "e75e6d3f-7d02-45a4-8c5f-a59b271cc080",
+      "name": "Assemble Lead Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2656,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "hot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "hot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "warm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "warm"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3c43a925-94e6-42ae-8168-8fabc0bb653f",
+      "name": "Route by Tier",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C092S8REWQZ",
+          "mode": "list",
+          "cachedResultName": "general"
+        },
+        "text": "=*HOT inbound lead - score {{ $json.score }}/100* - owner: {{ $json.rep_mention }}\n*{{ $json.full_name || $json.email }}* - {{ $json.job_title || \"title unknown\" }} at *{{ $json.company }}*\n{{ $json.employee_count ? $json.employee_count + \" employees\" : \"size unknown\" }} | {{ $json.industry || \"industry unknown\" }} | growth: {{ $json.growth_signal }} | tech: {{ $json.tech_adoption }}\nWhy it scored: {{ $json.score_breakdown }}\nSignals: {{ $json.personalization_hooks || \"none found\" }}\nEmail: {{ $json.email }}{{ $json.phone ? \" | Phone: \" + $json.phone : \"\" }}{{ $json.linkedin_url ? \" | \" + $json.linkedin_url : \"\" }}\nThey wrote: {{ $json.message || \"-\" }}\n\n*Suggested reply* - Subject: {{ $json.outreach_subject }}\n>{{ $json.outreach_message.split(\"\\n\").join(\"\\n>\") }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "unfurl_links": false
+        }
+      },
+      "id": "009f0851-cf98-4d17-974a-ff387de203ed",
+      "name": "Alert Rep - Hot Lead",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        3104,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "webhookId": "d75da5dd-105f-4c46-bca3-c52fee02e6be",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "wOyjO3hSq164kuLW",
+          "name": "Slack account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C092S8REWQZ",
+          "mode": "list",
+          "cachedResultName": "general"
+        },
+        "text": "=*Warm inbound lead - score {{ $json.score }}/100* - queue: {{ $json.owner_queue }}\n*{{ $json.full_name || $json.email }}* - {{ $json.job_title || \"title unknown\" }} at *{{ $json.company }}* ({{ $json.employee_count || \"?\" }} employees, {{ $json.industry || \"industry unknown\" }})\nWhy: {{ $json.score_breakdown }}\nHook: {{ $json.personalization_hook || \"-\" }}\nSuggested subject: {{ $json.outreach_subject }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "unfurl_links": false
+        }
+      },
+      "id": "2ed5205f-758f-49a7-a257-35d0e13a1e24",
+      "name": "Notify Queue - Warm Lead",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        3104,
+        320
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "webhookId": "a5661afd-6121-4d2d-a41a-b11d4867058c",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "wOyjO3hSq164kuLW",
+          "name": "Slack account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "companyName": "={{ $json.company }}",
+          "companySize": "={{ $json.employee_count ? String($json.employee_count) : \"\" }}",
+          "firstName": "={{ $json.first_name }}",
+          "industry": "={{ $json.industry }}",
+          "jobTitle": "={{ $json.job_title }}",
+          "lastName": "={{ $json.last_name }}",
+          "lifeCycleStage": "={{ $json.hubspot_lifecycle }}",
+          "linkedinUrl": "={{ $json.linkedin_url }}",
+          "message": "={{ ($json.message ? $json.message + \"\\n\\n\" : \"\") + \"[Lead score \" + $json.score + \"/100 - \" + $json.tier + \"] \" + $json.score_breakdown + \"\\nSignals: \" + ($json.personalization_hooks || \"-\") + \"\\nSuggested opener: \" + $json.outreach_message }}",
+          "phoneNumber": "={{ $json.phone }}",
+          "websiteUrl": "={{ $json.domain ? \"https://\" + $json.domain : \"\" }}"
+        },
+        "options": {}
+      },
+      "id": "8dd61d7d-4f31-49b9-ae20-bf667880a4f8",
+      "name": "Upsert HubSpot Contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        2880,
+        512
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "RHRRyEHaEpTaTNlR",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7A8WNqq1VUwFTseO",
+          "cachedResultName": "inbound_leads_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $(\"Assemble Lead Record\").first().json.lead_id }}",
+            "received_at": "={{ $(\"Assemble Lead Record\").first().json.received_at }}",
+            "source": "={{ $(\"Assemble Lead Record\").first().json.source }}",
+            "email": "={{ $(\"Assemble Lead Record\").first().json.email }}",
+            "full_name": "={{ $(\"Assemble Lead Record\").first().json.full_name }}",
+            "company": "={{ $(\"Assemble Lead Record\").first().json.company }}",
+            "domain": "={{ $(\"Assemble Lead Record\").first().json.domain }}",
+            "job_title": "={{ $(\"Assemble Lead Record\").first().json.job_title }}",
+            "seniority": "={{ $(\"Assemble Lead Record\").first().json.seniority }}",
+            "industry": "={{ $(\"Assemble Lead Record\").first().json.industry }}",
+            "employee_count": "={{ $(\"Assemble Lead Record\").first().json.employee_count || 0 }}",
+            "growth_signal": "={{ $(\"Assemble Lead Record\").first().json.growth_signal }}",
+            "tech_adoption": "={{ $(\"Assemble Lead Record\").first().json.tech_adoption }}",
+            "score": "={{ $(\"Assemble Lead Record\").first().json.score }}",
+            "tier": "={{ $(\"Assemble Lead Record\").first().json.tier }}",
+            "owner_queue": "={{ $(\"Assemble Lead Record\").first().json.owner_queue }}",
+            "score_breakdown": "={{ $(\"Assemble Lead Record\").first().json.score_breakdown }}",
+            "personalization_hook": "={{ $(\"Assemble Lead Record\").first().json.personalization_hook }}",
+            "outreach_subject": "={{ $(\"Assemble Lead Record\").first().json.outreach_subject }}",
+            "outreach_message": "={{ $(\"Assemble Lead Record\").first().json.outreach_message }}",
+            "enrichment_confidence": "={{ $(\"Assemble Lead Record\").first().json.enrichment_confidence }}",
+            "crm_status": "={{ $json.error ? \"failed\" : \"synced\" }}",
+            "crm_contact_id": "={{ String($json.vid || $json.id || $json[\"canonical-vid\"] || \"\") }}",
+            "error_message": "={{ $json.error ? (typeof $json.error === \"string\" ? $json.error : JSON.stringify($json.error)) : \"\" }}",
+            "processing_seconds": "={{ Math.round(($now.toMillis() - DateTime.fromISO($(\"Assemble Lead Record\").first().json.received_at).toMillis()) / 1000) }}"
+          },
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "received_at",
+              "displayName": "received_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "full_name",
+              "displayName": "full_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_title",
+              "displayName": "job_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seniority",
+              "displayName": "seniority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employee_count",
+              "displayName": "employee_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "growth_signal",
+              "displayName": "growth_signal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tech_adoption",
+              "displayName": "tech_adoption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "owner_queue",
+              "displayName": "owner_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score_breakdown",
+              "displayName": "score_breakdown",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "personalization_hook",
+              "displayName": "personalization_hook",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outreach_subject",
+              "displayName": "outreach_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outreach_message",
+              "displayName": "outreach_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "enrichment_confidence",
+              "displayName": "enrichment_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "crm_status",
+              "displayName": "crm_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "crm_contact_id",
+              "displayName": "crm_contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_seconds",
+              "displayName": "processing_seconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2220d14e-a153-416e-9b64-e24dd83f2e41",
+      "name": "Log Lead Outcome",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3104,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## SETUP GUIDE - read before first use\n\n### 1. Connect accounts (your own)\n- **Slack**: connect a workspace where you may add apps (some workspaces need admin approval). Invite the app into any private channel you pick.\n- **HubSpot**: connect a user who can create and edit contacts.\n- Search, website scrape and AI run on n8n Gateway credits - no keys needed.\n\n### 2. HubSpot - nothing to create\nUses only standard contact properties: email, first/last name, company, job title, website, industry, company size, LinkedIn, phone, lifecycle stage, message.\nLifecycle mapping: hot = Sales Qualified Lead, warm = Marketing Qualified Lead, nurture = Lead. If your stages are renamed/custom, adjust the mapping in Score & Assign Lead.\nScore, tier and the suggested opener are written into the contact message field.\n\n### 3. Slack\n- **Alert Rep - Hot Lead**: choose your hot-lead channel (e.g. #hot-leads).\n- **Notify Queue - Warm Lead**: choose your warm-lead channel (e.g. #inbound-leads).\nAny existing channel works; no new channel is required.\n\n### 4. Lead Config node - fill in your company\n- **company_pitch**: one or two sentences on what you sell (used in the outreach draft)\n- **target_industries**, **target_tech**: comma-separated, lowercase\n- **icp_min_employees** / **icp_max_employees**: ideal company size\n- **hot_threshold** / **warm_threshold**: score cut-offs (0-100)\n- **dedupe_hours**: ignore repeat submissions from the same email within this window\n- **free_email_domains**, **block_free_email**\n- **reps**: one entry per segment (enterprise 1000+, midmarket 100+, smb). slack_user_id = the rep's Slack member ID (Slack profile > ... > Copy member ID) so hot alerts @mention them; leave blank to show the name only.\nScore weights live in the Score & Assign Lead node.\n\n### 5. Send leads\nPOST JSON to the production webhook URL (path inbound-lead) after publishing. Only email is required; optional: first_name, last_name or name, company, website, job_title, linkedin_url, phone, country, message, source.\n\n### 6. Go live\nRun one test lead, check Slack, HubSpot and the inbound_leads_log table, then publish.",
+        "height": 1100,
+        "width": 620,
+        "color": 4
+      },
+      "id": "ae3f6a13-f372-4938-a294-9d20e2a562e6",
+      "name": "Setup Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        704
+      ]
+    }
+  ],
+  "connections": {
+    "Receive Lead": {
+      "main": [
+        [
+          {
+            "node": "Lead Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead": {
+      "main": [
+        [
+          {
+            "node": "Is Valid Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid Lead": {
+      "main": [
+        [
+          {
+            "node": "Find Recent Submission",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Recent Submission": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead": {
+      "main": [
+        [
+          {
+            "node": "Lead Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Accepted": {
+      "main": [
+        [
+          {
+            "node": "Prepare Research Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Research Inputs": {
+      "main": [
+        [
+          {
+            "node": "Search Person",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search Company Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Scrape Company Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Person": {
+      "main": [
+        [
+          {
+            "node": "Wait for Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Company Signals": {
+      "main": [
+        [
+          {
+            "node": "Wait for Research",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Scrape Company Website": {
+      "main": [
+        [
+          {
+            "node": "Wait for Research",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Wait for Research": {
+      "main": [
+        [
+          {
+            "node": "Extract Lead Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Lead Profile": {
+      "main": [
+        [
+          {
+            "node": "Score & Assign Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score & Assign Lead": {
+      "main": [
+        [
+          {
+            "node": "Write Personalized Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Personalized Outreach": {
+      "main": [
+        [
+          {
+            "node": "Assemble Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Lead Record": {
+      "main": [
+        [
+          {
+            "node": "Route by Tier",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert HubSpot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Tier": {
+      "main": [
+        [
+          {
+            "node": "Alert Rep - Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Queue - Warm Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert HubSpot Contact": {
+      "main": [
+        [
+          {
+            "node": "Log Lead Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "nodeGroups": [
+    {
+      "id": "6314ad94-f132-4ea7-b15d-8db3ed3d44a7",
+      "name": "Clean and qualify intake",
+      "nodeIds": [
+        "b4ab43de-de44-44a0-8b11-a2f3adce6fe6",
+        "0efda823-1c6b-4f1e-bf3a-0b14a508da80",
+        "a8317cbb-ae8c-4a20-8fa8-e4f0204d8429",
+        "d5b6f3c7-304c-45f9-9828-91fdc42aed1a",
+        "3a67200a-e414-4980-bd22-a29da1117165",
+        "8e7dd724-8c73-4567-a4a8-10fe5332fec3",
+        "d3f40dcb-14ec-4f4f-b5aa-f05788b83e7b"
+      ],
+      "description": "Normalizes the raw webhook payload, rejects invalid emails and drops repeat submissions, logging every skip"
+    },
+    {
+      "id": "70cfe217-7b08-4785-a131-5516bdfb8242",
+      "name": "Research the lead",
+      "nodeIds": [
+        "3db614bf-a9df-48ae-9e0a-7b6c76844ef7",
+        "fc27c5e4-9599-4d74-8f6d-397a943ab697",
+        "ec0ed55c-5431-42db-b2e5-3955c6ab65ed",
+        "9fd8f60f-f854-4d82-b35a-5be840c18ff6",
+        "27acd8f3-bcd0-4868-984f-c2154a0a954d",
+        "a0903573-67ef-4a99-8116-a6d30dbba562"
+      ],
+      "description": "Web search on the person and company plus a website scrape, condensed by AI into a firmographic and career profile"
+    },
+    {
+      "id": "f7a3751f-0c68-43d4-accb-7a88fa45593a",
+      "name": "Prioritize & personalize",
+      "nodeIds": [
+        "7878f7e7-12dc-4075-a34e-234df5bfec66",
+        "342e5b03-0fc3-49d6-932f-91eb39620ade"
+      ],
+      "description": "Scores fit on size, growth, tech, seniority, industry and intent, picks the rep, then drafts a tailored first reply"
+    },
+    {
+      "id": "b63c1cf3-f5ba-43a4-88e8-59394e8e3067",
+      "name": "Deliver to sales",
+      "nodeIds": [
+        "e75e6d3f-7d02-45a4-8c5f-a59b271cc080",
+        "3c43a925-94e6-42ae-8168-8fabc0bb653f",
+        "009f0851-cf98-4d17-974a-ff387de203ed",
+        "2ed5205f-758f-49a7-a257-35d0e13a1e24",
+        "8dd61d7d-4f31-49b9-ae20-bf667880a4f8",
+        "2220d14e-a153-416e-9b64-e24dd83f2e41"
+      ],
+      "description": "Hot leads ping the owning rep, warm leads go to the queue, every lead is upserted to the CRM and logged with timing"
+    }
+  ],
+  "meta": {
+    "instanceId": "24f8cb14bf1dbc2ddf3f6302c75d53ed991a0b11425196b9ba273ddba1183945"
+  }
+}
