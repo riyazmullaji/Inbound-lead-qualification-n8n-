@@ -4,7 +4,6 @@ An **n8n-based inbound GTM automation** that validates new inquiries, researches
 
 **Tech stack:** n8n · JavaScript · Brave Search · Firecrawl · OpenAI · HubSpot · Slack · n8n Data Tables
 
-> **Project scope:** This repository documents a configurable demonstration workflow. Lead scoring is rule-based and has not been statistically validated. Sales queues are placeholders, not verified live representative assignments. The workflow prepares outreach drafts; it does **not** automatically send emails or LinkedIn messages.
 
 ## 1. Project Overview
 
