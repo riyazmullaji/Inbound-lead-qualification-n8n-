@@ -37,13 +37,13 @@ The pipeline is organized into five stages:
 
 ## 4. High-Level System Architecture
 
-![AI-Powered Inbound Lead Qualification Architecture](assets/01-system-architecture.png)
+![AI-Powered Inbound Lead Qualification Architecture](01-system-architecture.png)
 
 **Figure 1 — System architecture.** n8n orchestrates intake, independent research branches, AI profile extraction, deterministic scoring, outreach drafting, and parallel CRM/notification handoffs.
 
 ### Workflow logic
 
-![Inbound Lead Processing Workflow](assets/02-workflow-logic.png)
+![Inbound Lead Processing Workflow](02-workflow-logic.png)
 
 **Figure 2 — Detailed workflow logic.** The validation and duplicate decisions stop unsuitable submissions before research. HubSpot runs on a branch separate from Slack notifications.
 
@@ -92,7 +92,7 @@ A drafted message is provided to sales for review; no automatic outbound send is
 
 ## 5. Rule-Based ICP Scoring
 
-![Rule-Based ICP Scoring and Lead Prioritization](assets/03-lead-scoring.png)
+![Rule-Based ICP Scoring and Lead Prioritization](03-lead-scoring.png)
 
 **Figure 3 — Explainable ICP scoring.** Maximum point allocations and priority thresholds are taken from the JavaScript node, not inferred from model output.
 
@@ -118,7 +118,7 @@ The workflow stores a breakdown such as `size 25, growth 10, tech 13, seniority 
 
 ## 6. Sales Routing and CRM Handoff
 
-![Intelligent Lead Routing and Sales Handoff](assets/04-sales-routing.png)
+![Intelligent Lead Routing and Sales Handoff](04-sales-routing.png)
 
 **Figure 4 — Sales routing and CRM handoff.** A lead's employee count determines its sales queue, while the score determines the Slack notification level. HubSpot contact processing is independent of Slack notification routing.
 
